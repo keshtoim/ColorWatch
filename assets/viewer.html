@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Color Watch — зритель</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, sans-serif;
+    background: #111; color: #eee;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; background: #1b1b1b; border-bottom: 1px solid #333;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  #dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #777; transition: background .2s;
+  }
+  #label { font-weight: 700; letter-spacing: .5px; }
+  #stage {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #000; overflow: hidden;
+  }
+  #video { max-width: 100%; max-height: 100%; }
+  footer {
+    padding: 8px 16px; font-size: 12px; color: #999;
+    background: #1b1b1b; border-top: 1px solid #333;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  button {
+    background: #2d6cdf; color: #fff; border: 0; border-radius: 6px;
+    padding: 8px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:disabled { background: #444; cursor: default; }
+  #err { color: #e66; }
+</style>
+</head>
+<body>
+  <header>
+    <div id="dot"></div>
+    <span id="label">—</span>
+    <h1 style="margin-left:auto">Color Watch</h1>
+  </header>
+
+  <div id="stage">
+    <img id="video" src="/stream" alt="поток камеры"/>
+  </div>
+
+  <footer>
+    <span id="err"></span>
+    <button id="enable">Включить звук и уведомления</button>
+  </footer>
+
+<script>
+  const dot = document.getElementById('dot');
+  const label = document.getElementById('label');
+  const err = document.getElementById('err');
+  const enableBtn = document.getElementById('enable');
+
+  const colors = { green: '#3ad13a', red: '#e23b3b', other: '#777' };
+
+  let lastChange = 0;     // last change timestamp seen from camera
+  let alertsOn = false;   // sound + notifications require a user gesture first
+  let audioCtx = null;
+
+  // Browsers block audio/notifications until the user interacts. This button
+  // unlocks both.
+  enableBtn.addEventListener('click', async () => {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume();
+    } catch (e) {}
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      try { await Notification.requestPermission(); } catch (e) {}
+    }
+    alertsOn = true;
+    enableBtn.disabled = true;
+    enableBtn.textContent = 'Сигналы включены';
+  });
+
+  function beep() {
+    if (!audioCtx) return;
+    // Two short tones, like a ring.
+    const now = audioCtx.currentTime;
+    [880, 660].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const t = now + i * 0.22;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      osc.start(t); osc.stop(t + 0.22);
+    });
+  }
+
+  function notify(color) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Color Watch', { body: 'Смена цвета: ' + color });
+    }
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch('/status', { cache: 'no-store' });
+      if (!res.ok) throw new Error('status ' + res.status);
+      const data = await res.json();
+      const color = data.color || 'other';
+
+      dot.style.background = colors[color] || colors.other;
+      label.textContent = color.toUpperCase();
+      err.textContent = '';
+
+      const lc = data.lastChangeMs || 0;
+      if (lc && lastChange && lc !== lastChange) {
+        // Camera reported a new color change.
+        if (alertsOn) { beep(); notify(color); }
+      }
+      lastChange = lc;
+    } catch (e) {
+      err.textContent = 'Нет связи с камерой';
+    }
+  }
+
+  setInterval(poll, 1000);
+  poll();
+
+  // If the MJPEG stream drops, try to reload it periodically.
+  const video = document.getElementById('video');
+  video.addEventListener('error', () => {
+    setTimeout(() => { video.src = '/stream?ts=' + Date.now(); }, 2000);
+  });
+</script>
+</body>
+</html>
