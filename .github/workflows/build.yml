@@ -60,6 +60,22 @@ jobs:
           sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/' android/app/build.gradle.kts || true
           sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 34/' android/app/build.gradle || true
 
+      # flutter_local_notifications (v17+) needs Java 8+ core library desugaring.
+      # The android/ scaffolding is generated fresh, so enable it on the
+      # generated Gradle file and add the desugar_jdk_libs dependency.
+      - name: Enable core library desugaring
+        run: |
+          KTS=android/app/build.gradle.kts
+          if [ -f "$KTS" ]; then
+            sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' "$KTS"
+            printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> "$KTS"
+          fi
+          GRADLE=android/app/build.gradle
+          if [ -f "$GRADLE" ]; then
+            sed -i 's/compileOptions {/compileOptions {\n        coreLibraryDesugaringEnabled true/' "$GRADLE"
+            printf "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n" >> "$GRADLE"
+          fi
+
       - name: Get dependencies
         run: flutter pub get
 
