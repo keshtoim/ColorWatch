@@ -1,7 +1,7 @@
 name: color_watch
 description: Watches a light's color via camera, alerts on change, and streams video + status to a second phone over the local network (no internet needed).
 publish_to: "none"
-version: 1.2.0+3
+version: 1.5.0+6
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -21,9 +21,20 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/alarm.mp3
     - assets/viewer.html
+
+# App launcher icon. Source image lives at assets/icon.png (a square PNG,
+# ideally 1024x1024). The CI build runs flutter_launcher_icons after generating
+# the android/ scaffolding; it overwrites the default Flutter mipmaps that the
+# manifest references via @mipmap/ic_launcher.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  min_sdk_android: 21
