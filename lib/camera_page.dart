@@ -126,7 +126,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       serviceId: 256,
       notificationTitle: 'Color Watch активно',
       notificationText: 'Слежу за цветом и раздаю видео',
-      serviceTypes: [ForegroundServiceTypes.camera],
       callback: startCallback,
     );
     setState(() => _serviceOn = true);
@@ -425,5 +424,5 @@ class _CamTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime t) {}
   @override
-  Future<void> onDestroy(DateTime t, bool isTimeout) async {}
+  Future<void> onDestroy(DateTime t) async {}
 }

@@ -12,7 +12,11 @@ dependencies:
   camera: ^0.11.0
   flutter_local_notifications: ^17.2.3
   audioplayers: ^6.1.0
-  flutter_foreground_task: ^8.10.0
+  # Pinned: the caret range let pub resolve 8.17.0+, which dropped the
+  # `serviceTypes` startService arg and changed TaskHandler.onDestroy, breaking
+  # the build. Pin to 8.17.0 so the API the code targets stays put. The camera
+  # foreground-service type is declared in overrides/AndroidManifest.xml.
+  flutter_foreground_task: 8.17.0
   shelf: ^1.4.1
   http: ^1.2.2
   network_info_plus: ^6.1.1
