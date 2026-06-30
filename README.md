@@ -1,4 +1,4 @@
-<img src="assets/icon.png" alt="Color Watch" width="96" align="right">
+<img src="assets/icon.png" alt="Color Watch" width="80" align="right">
 
 # Color Watch
 
