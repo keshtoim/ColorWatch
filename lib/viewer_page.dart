@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -24,6 +25,9 @@ class _ViewerPageState extends State<ViewerPage> {
   bool _connected = false;
   String _base = '';
   Timer? _poll;
+  Timer? _frameTimer;
+  bool _fetchingFrame = false;
+  Uint8List? _frame;
 
   DetectedColor _current = DetectedColor.other;
   int _lastChangeSeen = 0;
@@ -46,11 +50,37 @@ class _ViewerPageState extends State<ViewerPage> {
     });
     _poll?.cancel();
     _poll = Timer.periodic(const Duration(seconds: 1), (_) => _fetchStatus());
+    _frameTimer?.cancel();
+    _frameTimer =
+        Timer.periodic(const Duration(milliseconds: 120), (_) => _fetchFrame());
   }
 
   void _disconnect() {
     _poll?.cancel();
-    setState(() => _connected = false);
+    _frameTimer?.cancel();
+    setState(() {
+      _connected = false;
+      _frame = null;
+    });
+  }
+
+  // Pulls single JPEG frames and swaps them in. Flutter's Image.network cannot
+  // render an MJPEG (multipart/x-mixed-replace) stream, so instead of /stream we
+  // poll /frame fast and display each still via Image.memory.
+  Future<void> _fetchFrame() async {
+    if (_fetchingFrame) return;
+    _fetchingFrame = true;
+    try {
+      final res = await http
+          .get(Uri.parse('$_base/frame'))
+          .timeout(const Duration(seconds: 2));
+      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty && mounted) {
+        setState(() => _frame = res.bodyBytes);
+      }
+    } catch (_) {
+    } finally {
+      _fetchingFrame = false;
+    }
   }
 
   // Open the live stream in a floating window over other apps.
@@ -121,6 +151,7 @@ class _ViewerPageState extends State<ViewerPage> {
   @override
   void dispose() {
     _poll?.cancel();
+    _frameTimer?.cancel();
     _alerter.dispose();
     _addr.dispose();
     super.dispose();
@@ -164,16 +195,16 @@ class _ViewerPageState extends State<ViewerPage> {
                   child: Container(
                     color: Colors.black,
                     width: double.infinity,
-                    child: Image.network(
-                      '$_base/stream',
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Text('Видео недоступно',
-                            style: TextStyle(color: Colors.white)),
-                      ),
-                      loadingBuilder: (ctx, child, prog) => child,
-                    ),
+                    child: _frame == null
+                        ? const Center(
+                            child: Text('Ожидание видео…',
+                                style: TextStyle(color: Colors.white)),
+                          )
+                        : Image.memory(
+                            _frame!,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                          ),
                   ),
                 ),
                 Container(

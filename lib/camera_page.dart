@@ -218,6 +218,16 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         headers: {'content-type': 'application/json'},
       );
     }
+    if (path == 'frame') {
+      final jpeg = _latestJpeg;
+      if (jpeg == null) {
+        return Response.notFound('no frame yet');
+      }
+      return Response.ok(jpeg, headers: {
+        'content-type': 'image/jpeg',
+        'cache-control': 'no-store',
+      });
+    }
     if (path == 'stream') {
       final controller = StreamController<List<int>>();
       const boundary = 'frame';
