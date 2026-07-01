@@ -156,17 +156,54 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     try {
       _viewerHtml = await rootBundle.loadString('assets/viewer.html');
     } catch (_) {}
-    try {
-      final info = NetworkInfo();
-      _ip = await info.getWifiIP() ?? '192.168.43.1';
-    } catch (_) {
-      _ip = '192.168.43.1';
-    }
+    _ip = await _detectIp();
     try {
       _server = await shelf_io.serve(
           const Pipeline().addHandler(_router), InternetAddress.anyIPv4, kServerPort);
     } catch (_) {}
     if (mounted) setState(() {});
+  }
+
+  // Finds the address other devices should use to reach this phone. On a normal
+  // Wi-Fi network getWifiIP() returns the right client IP. But when this phone is
+  // the hotspot host, its Wi-Fi client interface is down and getWifiIP() returns
+  // null — the real address lives on the access-point interface (e.g.
+  // 192.168.43.205, not always the textbook 192.168.43.1). So fall back to
+  // scanning the network interfaces for a private LAN address.
+  Future<String> _detectIp() async {
+    try {
+      final wifiIp = await NetworkInfo().getWifiIP();
+      if (wifiIp != null && wifiIp.isNotEmpty && wifiIp != '0.0.0.0') {
+        return wifiIp;
+      }
+    } catch (_) {}
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+      );
+      String? firstIp;
+      for (final ni in interfaces) {
+        for (final addr in ni.addresses) {
+          firstIp ??= addr.address;
+          if (_isPrivateLan(addr.address)) return addr.address;
+        }
+      }
+      if (firstIp != null) return firstIp;
+    } catch (_) {}
+    return '192.168.43.1';
+  }
+
+  bool _isPrivateLan(String ip) {
+    if (ip.startsWith('192.168.')) return true;
+    if (ip.startsWith('10.')) return true;
+    // 172.16.0.0 – 172.31.255.255
+    final m = RegExp(r'^172\.(\d+)\.').firstMatch(ip);
+    if (m != null) {
+      final second = int.tryParse(m.group(1)!) ?? 0;
+      return second >= 16 && second <= 31;
+    }
+    return false;
   }
 
   Future<Response> _router(Request req) async {
